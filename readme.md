@@ -72,18 +72,6 @@ Language can be selected from the startup screen.
 
 ## Demo / Screens
 
-You can add screenshots here later.
-
-### Suggested screenshots
-- Language selection screen
-- Library screen
-- Add / edit book screen
-- Barcode scanning screen
-- CSV import / export screen
-
-Example:
-
-```md
 ![Language Selection](./screenshots/language-selection.png)
 ![Library](./screenshots/library.png)
 ![Add Book](./screenshots/add-book.png)
