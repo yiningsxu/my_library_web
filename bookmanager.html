@@ -141,9 +141,10 @@
                   <label class="flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 py-2 px-4 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors w-full">
                     <i data-lucide="camera" class="w-4 h-4"></i>
                     <span class="text-sm font-medium" data-i18n="photoUpload">拍照 / 上传</span>
-                    <input type="file" accept="image/*" capture="environment" onchange="handleImageUpload(event)" class="hidden" />
+                    <!-- 移除 capture="environment"，允许手机浏览器弹出相册与拍照的选择菜单 -->
+                    <input type="file" accept="image/*" onchange="handleImageUpload(event)" class="hidden" />
                   </label>
-                  <p class="text-xs text-gray-500" data-i18n="photoTip">提示: 拍照会自动覆盖获取的封面图。</p>
+                  <p class="text-xs text-gray-500" data-i18n="photoTip">提示: 照片会自动压缩并覆盖获取的封面图。</p>
                 </div>
               </div>
             </div>
@@ -161,7 +162,6 @@
           <i data-lucide="library" class="w-6 h-6 fill-indigo-100" id="nav-icon-library"></i>
           <span class="text-xs mt-1 font-medium" data-i18n="navLibrary">书架</span>
         </button>
-        <!-- 传入 true 代表点击录入时，如果处于编辑状态，会自动清空表单变为添加新书 -->
         <button id="nav-btn-add" onclick="switchTab('add', true)" class="flex flex-col items-center justify-center w-full h-full text-gray-400 transition-colors">
           <i data-lucide="plus-circle" class="w-6 h-6" id="nav-icon-add"></i>
           <span class="text-xs mt-1 font-medium" data-i18n="navAdd">录入</span>
@@ -186,7 +186,7 @@
         priceLabel: '价格 (円 / ￥)', pricePlaceholder: '例如: 1200円',
         statusLabel: '阅读状态', statusUnread: '未读', statusReading: '阅读中', statusRead: '已读',
         notesLabel: '阅读感想',
-        bookCover: '书籍图片', photoUpload: '拍照 / 上传', photoTip: '提示: 拍照会自动压缩并覆盖获取的封面图。',
+        bookCover: '书籍图片', photoUpload: '拍照 / 上传', photoTip: '提示: 照片会自动压缩并覆盖获取的封面图。',
         saveBook: '保存书籍', updateBook: '更新书籍', navLibrary: '书架', navAdd: '录入', exportCSV: '导出 CSV', importCSV: '导入 CSV'
       },
       en: {
@@ -226,7 +226,7 @@
       html5QrCode: null
     };
 
-    // IndexedDB 封装，替代容量极小的 LocalStorage (解决 5MB 限制问题)
+    // IndexedDB 封装，替代容量极小的 LocalStorage
     const localDB = {
       db: null,
       async init() {
@@ -237,7 +237,7 @@
           };
           request.onsuccess = async (e) => {
             this.db = e.target.result;
-            // 无缝迁移旧的 LocalStorage 数据，防止之前存的 16 本书丢失
+            // 无缝迁移旧的 LocalStorage 数据
             const oldData = localStorage.getItem('my_library_books');
             if (oldData) {
               try {
@@ -357,7 +357,6 @@
       document.getElementById('btn-save').innerText = window.state.editingBookId ? t.updateBook : t.saveBook;
     }
 
-    // 清空表单与重置状态
     window.clearForm = () => {
       window.state.editingBookId = null;
       document.getElementById('input-isbn').value = '';
@@ -610,7 +609,6 @@
       document.getElementById('btn-save').disabled = title.length === 0;
     };
 
-    // 修复：加入了前端图片压缩机制，避免高像素照片直接转 base64 撑爆浏览器缓存或数据库
     window.handleImageUpload = (event) => {
       const file = event.target.files[0];
       if (file) {
@@ -619,12 +617,11 @@
           const img = new Image();
           img.onload = () => {
             const canvas = document.createElement('canvas');
-            const MAX_WIDTH = 400; // 进一步缩小宽度，节省大量空间
-            const MAX_HEIGHT = 600; // 进一步缩小高度
+            const MAX_WIDTH = 400; 
+            const MAX_HEIGHT = 600; 
             let width = img.width;
             let height = img.height;
 
-            // 等比例缩放图片
             if (width > height) {
               if (width > MAX_WIDTH) {
                 height *= MAX_WIDTH / width;
@@ -642,7 +639,6 @@
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
 
-            // 压缩图片：将压缩质量降低至 0.6
             window.state.formCustomImage = canvas.toDataURL('image/jpeg', 0.6);
             updateImagePreview();
             window.checkFormValid();
@@ -701,7 +697,7 @@
         } else {
           window.state.books.unshift(newBook);
         }
-        await localDB.put(newBook); // 保存入大容量 IndexedDB
+        await localDB.put(newBook);
       }
       
       window.clearForm();
@@ -715,7 +711,7 @@
         await deleteDoc(doc(db, 'artifacts', appId, 'users', window.state.user.uid, 'books', id));
       } else {
         window.state.books = window.state.books.filter(b => b.id !== id);
-        await localDB.delete(id); // 从本地大容量数据库删除
+        await localDB.delete(id); 
         renderLibrary();
       }
     };
@@ -784,7 +780,7 @@
             } else {
               bookData.id = docId;
               window.state.books.push(bookData);
-              await localDB.put(bookData); // 批量存入本地大容量数据库
+              await localDB.put(bookData); 
             }
           }
         }
