@@ -182,11 +182,11 @@
         emptyLibrary: '书架空空如也', emptyLibraryHint: '点击下方的 "+" 添加你的第一本书吧',
         unknownAuthor: '未知作者', price: '价格', dateAdded: '录入日',
         scanBarcode: '扫描条形码', placeBarcode: '请将条形码置于取景框内',
-        isbn: 'ISBN', isbnPlaceholder: '例如: 978xxxxxxxxxx', title: '书名', author: '作者',
+        isbn: 'ISBN', isbnPlaceholder: '例如: 9784062752140', title: '书名', author: '作者',
         priceLabel: '价格 (円 / ￥)', pricePlaceholder: '例如: 1200円',
         statusLabel: '阅读状态', statusUnread: '未读', statusReading: '阅读中', statusRead: '已读',
         notesLabel: '阅读感想',
-        bookCover: '书籍图片', photoUpload: '拍照 / 上传', photoTip: '提示: 拍照会自动覆盖获取的封面图。',
+        bookCover: '书籍图片', photoUpload: '拍照 / 上传', photoTip: '提示: 拍照会自动压缩并覆盖获取的封面图。',
         saveBook: '保存书籍', updateBook: '更新书籍', navLibrary: '书架', navAdd: '录入', exportCSV: '导出 CSV', importCSV: '导入 CSV'
       },
       en: {
@@ -194,11 +194,11 @@
         emptyLibrary: 'Your library is empty', emptyLibraryHint: 'Click "+" below to add your first book',
         unknownAuthor: 'Unknown Author', price: 'Price', dateAdded: 'Date Added',
         scanBarcode: 'Scan Barcode', placeBarcode: 'Place barcode inside the frame',
-        isbn: 'ISBN', isbnPlaceholder: 'e.g., 978xxxxxxxxxx', title: 'Title', author: 'Author',
+        isbn: 'ISBN', isbnPlaceholder: 'e.g., 9784062752140', title: 'Title', author: 'Author',
         priceLabel: 'Price (¥)', pricePlaceholder: 'e.g., 1200',
         statusLabel: 'Reading Status', statusUnread: 'Unread', statusReading: 'Reading', statusRead: 'Read',
         notesLabel: 'Reading Notes',
-        bookCover: 'Book Cover', photoUpload: 'Photo / Upload', photoTip: 'Tip: Taking a photo overwrites the fetched cover.',
+        bookCover: 'Book Cover', photoUpload: 'Photo / Upload', photoTip: 'Tip: Photos are automatically compressed and will overwrite the fetched cover.',
         saveBook: 'Save Book', updateBook: 'Update Book', navLibrary: 'Library', navAdd: 'Add', exportCSV: 'Export CSV', importCSV: 'Import CSV'
       },
       ja: {
@@ -206,11 +206,11 @@
         emptyLibrary: '本棚は空です', emptyLibraryHint: '下の「+」をタップして最初の本を追加しましょう',
         unknownAuthor: '作者不明', price: '価格', dateAdded: '登録日',
         scanBarcode: 'バーコードをスキャン', placeBarcode: 'バーコードを枠内に配置してください',
-        isbn: 'ISBN', isbnPlaceholder: '例: 978xxxxxxxxxx', title: 'タイトル', author: '著者',
+        isbn: 'ISBN', isbnPlaceholder: '例: 9784062752140', title: 'タイトル', author: '著者',
         priceLabel: '価格 (円)', pricePlaceholder: '例: 1200円',
         statusLabel: '読書状況', statusUnread: '未読', statusReading: '読書中', statusRead: '読了',
         notesLabel: '感想',
-        bookCover: '本の画像', photoUpload: '写真 / アップロード', photoTip: 'ヒント：写真を撮ると自動取得した画像が上書きされます。',
+        bookCover: '本の画像', photoUpload: '写真 / アップロード', photoTip: 'ヒント：写真は自動的に圧縮され、自動取得した画像が上書きされます。',
         saveBook: '保存する', updateBook: '更新する', navLibrary: '本棚', navAdd: '登録', exportCSV: 'CSVを出力', importCSV: 'CSVを読込'
       }
     };
@@ -220,7 +220,7 @@
       tab: 'library',
       books: [],
       user: null,
-      editingBookId: null, // 新增：当前正在编辑的书籍 ID
+      editingBookId: null, 
       formCoverUrl: '',
       formCustomImage: '',
       html5QrCode: null
@@ -234,7 +234,12 @@
     }
 
     function saveLocalBooks() {
-      localStorage.setItem('my_library_books', JSON.stringify(window.state.books));
+      try {
+        localStorage.setItem('my_library_books', JSON.stringify(window.state.books));
+      } catch (e) {
+        console.error("Local Storage is full, Please export CSV to backup your data.", e);
+        alert("存储空间不足，请先导出 CSV 备份并清理浏览器缓存。");
+      }
     }
 
     const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
@@ -327,7 +332,7 @@
       document.getElementById('form-image-preview').innerHTML = `<i data-lucide="image" class="text-gray-300 w-6 h-6"></i>`;
       if (window.lucide) lucide.createIcons({root: document.getElementById('form-image-preview')});
       window.checkFormValid();
-      updateUITexts(); // 更新按钮和标题文字
+      updateUITexts(); 
     };
 
     window.switchTab = (tab, resetForm = false) => {
@@ -410,7 +415,6 @@
           
           return `
             <div class="bg-white p-3 rounded-xl shadow-sm relative overflow-hidden flex flex-col gap-2">
-              <!-- 左侧和中间信息包裹为可点击区域，用于编辑 -->
               <div class="flex gap-4 cursor-pointer" onclick="editBook('${book.id}')">
                 <div class="w-20 h-28 bg-gray-100 rounded-md flex-shrink-0 flex items-center justify-center overflow-hidden border border-gray-100">
                   ${imgHtml}
@@ -427,7 +431,6 @@
                 </div>
               </div>
               ${notesHtml}
-              <!-- 删除按钮保持独立事件 -->
               <button onclick="deleteBook('${book.id}')" class="absolute top-2 right-2 p-2 text-gray-300 hover:text-red-500 transition-colors bg-white rounded-full shadow-sm border border-gray-100">
                 <i data-lucide="trash-2" class="w-4 h-4"></i>
               </button>
@@ -438,15 +441,12 @@
       }
     }
 
-    // 新增：编辑书籍逻辑
     window.editBook = (id) => {
       const book = window.state.books.find(b => b.id === id);
       if (!book) return;
 
-      // 记录正在编辑的 ID
       window.state.editingBookId = id;
 
-      // 填充表单数据
       document.getElementById('input-isbn').value = book.isbn || '';
       document.getElementById('input-title').value = book.title || '';
       document.getElementById('input-author').value = book.author || '';
@@ -460,7 +460,6 @@
       updateImagePreview();
       checkFormValid();
 
-      // 跳转到录入视图（且不执行 resetForm）
       window.switchTab('add', false);
     };
 
@@ -572,13 +571,44 @@
       document.getElementById('btn-save').disabled = title.length === 0;
     };
 
+    // 修复：加入了前端图片压缩机制，避免高像素照片直接转 base64 撑爆浏览器缓存或数据库
     window.handleImageUpload = (event) => {
       const file = event.target.files[0];
       if (file) {
         const reader = new FileReader();
-        reader.onloadend = () => {
-          window.state.formCustomImage = reader.result;
-          updateImagePreview();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 600; // 设置最大宽度
+            const MAX_HEIGHT = 800; // 设置最大高度
+            let width = img.width;
+            let height = img.height;
+
+            // 等比例缩放图片
+            if (width > height) {
+              if (width > MAX_WIDTH) {
+                height *= MAX_WIDTH / width;
+                width = MAX_WIDTH;
+              }
+            } else {
+              if (height > MAX_HEIGHT) {
+                width *= MAX_HEIGHT / height;
+                height = MAX_HEIGHT;
+              }
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // 压缩图片：将压缩质量设置为 0.7 并转为 JPEG 格式
+            window.state.formCustomImage = canvas.toDataURL('image/jpeg', 0.7);
+            updateImagePreview();
+            window.checkFormValid();
+          };
+          img.src = e.target.result;
         };
         reader.readAsDataURL(file);
       }
@@ -610,7 +640,6 @@
         customImage: window.state.formCustomImage
       };
       
-      // 处理录入日期（如果是编辑，则保留原有日期）
       if (isEditing) {
         const existingBook = window.state.books.find(b => b.id === targetId);
         newBook.entryDate = existingBook ? existingBook.entryDate : new Date().toISOString();
@@ -619,7 +648,12 @@
       }
       
       if (window.state.user && db) {
-        await setDoc(doc(db, 'artifacts', appId, 'users', window.state.user.uid, 'books', targetId), newBook);
+        try {
+          await setDoc(doc(db, 'artifacts', appId, 'users', window.state.user.uid, 'books', targetId), newBook);
+        } catch (error) {
+          console.error("保存到云端失败", error);
+          alert("保存失败，可能图片数据过大。");
+        }
       } else {
         newBook.id = targetId;
         if (isEditing) {
@@ -631,7 +665,6 @@
         saveLocalBooks();
       }
       
-      // 清空表单与重置编辑状态
       window.clearForm();
       
       window.switchTab('library');
