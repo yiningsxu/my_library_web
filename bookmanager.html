@@ -2,8 +2,8 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <!-- 确保在手机上比例正确，且作为PWA运行时全屏沉浸 -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <!-- 恢复标准 viewport，移除禁止缩放的 PWA 限制，保证原生浏览器的稳定性 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MY LIBRARY</title>
   
   <!-- 引入 Tailwind CSS 样式库 -->
@@ -16,21 +16,20 @@
   <style>
     /* 适配 iOS 底部安全区域 */
     .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
-    /* 隐藏滚动条让界面更像原生App */
-    ::-webkit-scrollbar { width: 0px; background: transparent; }
   </style>
 </head>
-<body class="bg-gray-100 font-sans selection:bg-indigo-100 flex justify-center h-screen overflow-hidden">
+<!-- 移除了 h-screen 和 overflow-hidden，使用原生页面滚动 -->
+<body class="bg-gray-100 font-sans selection:bg-indigo-100 flex justify-center min-h-screen">
 
-  <!-- 整个应用的容器，限制最大宽度以模拟手机屏幕 -->
-  <div id="app" class="w-full max-w-md bg-gray-50 h-full flex flex-col shadow-2xl relative">
+  <!-- 整个应用的容器：允许高度自然撑开 -->
+  <div id="app" class="w-full max-w-md bg-gray-50 min-h-screen flex flex-col shadow-2xl relative pb-16">
 
     <!-- 1. 语言选择界面 (初始展示) -->
-    <div id="screen-language" class="absolute inset-0 bg-gray-50 z-50 flex flex-col items-center justify-center p-6">
+    <div id="screen-language" class="fixed inset-0 bg-gray-50 z-50 flex flex-col items-center justify-center p-6">
       <i data-lucide="globe" class="w-16 h-16 text-indigo-600 mb-6"></i>
       <h1 class="text-2xl font-bold text-gray-800 mb-2 text-center">Language / 言語 / 语言</h1>
       <p class="text-gray-500 mb-8 text-sm text-center">Please select your preferred language</p>
-      <div class="w-full space-y-4">
+      <div class="w-full max-w-sm space-y-4">
         <button onclick="setLanguage('ja')" class="w-full bg-white border-2 border-indigo-100 text-indigo-700 py-4 rounded-xl font-bold text-lg hover:bg-indigo-50 transition-colors shadow-sm">日本語</button>
         <button onclick="setLanguage('en')" class="w-full bg-white border-2 border-indigo-100 text-indigo-700 py-4 rounded-xl font-bold text-lg hover:bg-indigo-50 transition-colors shadow-sm">English</button>
         <button onclick="setLanguage('zh')" class="w-full bg-white border-2 border-indigo-100 text-indigo-700 py-4 rounded-xl font-bold text-lg hover:bg-indigo-50 transition-colors shadow-sm">中文</button>
@@ -38,10 +37,10 @@
     </div>
 
     <!-- 2. 主应用界面 (选择语言后展示) -->
-    <div id="screen-app" class="hidden flex-col h-full w-full">
+    <div id="screen-app" class="hidden flex-col w-full h-full flex-1">
       
-      <!-- 顶部导航栏 -->
-      <header class="bg-indigo-600 text-white p-4 shadow-md flex justify-between items-center z-10 shrink-0">
+      <!-- 顶部导航栏 (使用 sticky 固定在顶部) -->
+      <header class="sticky top-0 bg-indigo-600 text-white p-4 shadow-md flex justify-between items-center z-30 shrink-0">
         <h1 class="text-xl font-bold flex items-center gap-2">
           <i data-lucide="book" class="w-6 h-6"></i>
           <span id="header-title">我的藏书</span>
@@ -54,8 +53,8 @@
         </div>
       </header>
 
-      <!-- 中间内容滚动区 -->
-      <main class="flex-1 overflow-y-auto pb-24">
+      <!-- 中间内容区 -->
+      <main class="flex-1 pb-10">
         
         <!-- ================= [书架视图] ================= -->
         <div id="view-library" class="p-4 space-y-4">
@@ -131,7 +130,7 @@
               <input type="text" id="input-price" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none" />
             </div>
 
-            <!-- 新增：阅读状态 -->
+            <!-- 阅读状态 -->
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1" data-i18n="statusLabel">阅读状态</label>
               <select id="input-status" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
@@ -141,7 +140,7 @@
               </select>
             </div>
 
-            <!-- 新增：阅读感想 -->
+            <!-- 阅读感想 -->
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1" data-i18n="notesLabel">阅读感想</label>
               <textarea id="input-notes" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none resize-none placeholder-gray-400"></textarea>
@@ -172,8 +171,8 @@
 
       </main>
 
-      <!-- 底部固定导航栏 -->
-      <nav class="absolute bottom-0 w-full bg-white border-t border-gray-200 flex justify-around items-center h-16 pb-safe z-20">
+      <!-- 底部固定导航栏 (使用 fixed 固定在底部) -->
+      <nav class="fixed bottom-0 w-full max-w-md bg-white border-t border-gray-200 flex justify-around items-center h-16 pb-safe z-30">
         <button id="nav-btn-library" onclick="switchTab('library')" class="flex flex-col items-center justify-center w-full h-full text-indigo-600 transition-colors">
           <i data-lucide="library" class="w-6 h-6 fill-indigo-100" id="nav-icon-library"></i>
           <span class="text-xs mt-1 font-medium" data-i18n="navLibrary">书架</span>
@@ -187,13 +186,12 @@
     </div>
   </div>
 
-  <!-- 核心逻辑脚本 (ES Module 格式以支持 Firebase) -->
+  <!-- 核心逻辑脚本 -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import { getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    // 翻译字典 (包含新增的阅读状态和感想)
     const translations = {
       zh: {
         myLibrary: '我的藏书', addBook: '添加新书', booksCount: '本',
@@ -204,7 +202,7 @@
         priceLabel: '价格 (円 / ￥)', pricePlaceholder: '例如: 1200円',
         statusLabel: '阅读状态', statusUnread: '未读', statusReading: '阅读中', statusRead: '已读',
         notesLabel: '阅读感想',
-        bookCover: '书籍图片', photoUpload: '拍照 / 上传', photoTip: '提示: 拍照会自动覆盖网络获取的封面图。',
+        bookCover: '书籍图片', photoUpload: '拍照 / 上传', photoTip: '提示: 拍照会自动覆盖获取的封面图。',
         saveBook: '保存书籍', navLibrary: '书架', navAdd: '录入', exportCSV: '导出 CSV', importCSV: '导入 CSV'
       },
       en: {
@@ -233,7 +231,6 @@
       }
     };
 
-    // 全局状态管理
     window.state = {
       lang: null,
       tab: 'library',
@@ -244,17 +241,15 @@
       html5QrCode: null
     };
 
-    // 初始化 Firebase
     const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
     const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
     
     let db, auth;
     
-    // 初始化应用
     document.addEventListener('DOMContentLoaded', () => {
       lucide.createIcons();
-      injectPWAManifest();
+      // 注：已移除 injectPWAManifest() 相关的全部代码
       
       try {
         const app = initializeApp(firebaseConfig);
@@ -287,42 +282,11 @@
       } catch(e) { console.error("Firebase 初始化跳过", e); }
     });
 
-    // 1. 动态生成并注入 PWA 的 manifest 和 meta 标签
-    function injectPWAManifest() {
-      const iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="background-color:white"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>`;
-      const iconUrl = 'data:image/svg+xml;base64,' + btoa(iconSvg);
-      
-      const manifest = {
-        name: "藏书管理系统", short_name: "藏书管理", start_url: ".", display: "standalone",
-        background_color: "#f9fafb", theme_color: "#4f46e5",
-        icons: [{ src: iconUrl, sizes: "192x192 512x512", type: "image/svg+xml", purpose: "any maskable" }]
-      };
-      
-      const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
-      const manifestUrl = URL.createObjectURL(blob);
-      
-      const linkManifest = document.createElement('link');
-      linkManifest.rel = 'manifest'; linkManifest.href = manifestUrl;
-      document.head.appendChild(linkManifest);
-
-      const metaCapable = document.createElement('meta');
-      metaCapable.name = 'apple-mobile-web-app-capable'; metaCapable.content = 'yes';
-      document.head.appendChild(metaCapable);
-
-      const metaStatus = document.createElement('meta');
-      metaStatus.name = 'apple-mobile-web-app-status-bar-style'; metaStatus.content = 'black-translucent';
-      document.head.appendChild(metaStatus);
-
-      const linkAppleIcon = document.createElement('link');
-      linkAppleIcon.rel = 'apple-touch-icon'; linkAppleIcon.href = iconUrl;
-      document.head.appendChild(linkAppleIcon);
-    }
-
-    // 2. 语言相关逻辑
     window.setLanguage = (lang) => {
       window.state.lang = lang;
       document.getElementById('screen-language').classList.add('hidden');
       document.getElementById('screen-app').classList.remove('hidden');
+      document.getElementById('screen-app').classList.add('flex');
       updateUITexts();
       renderLibrary();
     };
@@ -331,6 +295,7 @@
       window.state.lang = null;
       document.getElementById('screen-language').classList.remove('hidden');
       document.getElementById('screen-app').classList.add('hidden');
+      document.getElementById('screen-app').classList.remove('flex');
       window.stopScanner();
     };
 
@@ -348,11 +313,13 @@
       document.getElementById('btn-save').innerText = t.saveBook;
     }
 
-    // 3. 标签切换逻辑
     window.switchTab = (tab) => {
       window.state.tab = tab;
       const t = translations[window.state.lang];
       document.getElementById('header-title').innerText = tab === 'library' ? t.myLibrary : t.addBook;
+      
+      // 平滑滚动回顶部
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       
       if (tab === 'library') {
         document.getElementById('view-library').classList.remove('hidden');
@@ -377,7 +344,6 @@
       }
     };
 
-    // 4. 渲染书架
     function renderLibrary() {
       const t = translations[window.state.lang];
       const books = window.state.books;
@@ -403,7 +369,6 @@
             
           const dateStr = new Date(book.entryDate).toLocaleDateString();
           
-          // 状态处理
           const statusColors = {
             unread: 'bg-gray-100 text-gray-600',
             reading: 'bg-blue-100 text-blue-700',
@@ -417,9 +382,8 @@
           const currentStatus = book.status || 'unread';
           const statusBadge = `<span class="inline-block px-2 py-0.5 rounded text-[10px] font-medium ${statusColors[currentStatus]} mb-1">${statusMap[currentStatus]}</span>`;
           
-          // 感想处理
           const notesHtml = book.notes 
-            ? `<div class="mt-2 text-xs text-gray-600 bg-gray-50 p-2 rounded border border-gray-100 italic break-words">${book.notes}</div>` 
+            ? `<div class="mt-2 text-xs text-gray-600 bg-gray-50 p-2 rounded border border-gray-100 italic break-words whitespace-pre-wrap">${book.notes}</div>` 
             : '';
           
           return `
@@ -430,7 +394,7 @@
                 </div>
                 <div class="flex-1 min-w-0 py-1">
                   ${statusBadge}
-                  <h3 class="font-bold text-gray-800 text-lg leading-tight mb-1 truncate">${book.title}</h3>
+                  <h3 class="font-bold text-gray-800 text-lg leading-tight mb-1 break-words">${book.title}</h3>
                   <p class="text-sm text-gray-600 truncate">${book.author || t.unknownAuthor}</p>
                   <div class="mt-2 text-xs text-gray-500 space-y-1">
                     ${book.isbn ? `<p>ISBN: ${book.isbn}</p>` : ''}
@@ -450,7 +414,6 @@
       }
     }
 
-    // 5. 扫码器控制
     window.startScanner = () => {
       document.getElementById('scanner-container').classList.remove('hidden');
       document.getElementById('scanner-btn-container').classList.add('hidden');
@@ -486,7 +449,6 @@
       }
     };
 
-    // 6. 数据获取与表单处理
     window.manualFetch = () => {
       const isbn = document.getElementById('input-isbn').value.trim();
       if(isbn) fetchBookData(isbn);
@@ -583,8 +545,8 @@
         title: document.getElementById('input-title').value.trim(),
         author: document.getElementById('input-author').value.trim(),
         price: document.getElementById('input-price').value.trim(),
-        status: document.getElementById('input-status').value, // 状态
-        notes: document.getElementById('input-notes').value.trim(), // 感想
+        status: document.getElementById('input-status').value, 
+        notes: document.getElementById('input-notes').value.trim(), 
         coverUrl: window.state.formCoverUrl,
         customImage: window.state.formCustomImage,
         entryDate: new Date().toISOString()
@@ -606,7 +568,6 @@
       lucide.createIcons({root: document.getElementById('form-image-preview')});
       window.checkFormValid();
       
-      // 返回书架
       window.switchTab('library');
     };
 
@@ -615,7 +576,6 @@
       await deleteDoc(doc(db, 'artifacts', appId, 'users', window.state.user.uid, 'books', id));
     };
 
-    // 7. CSV 导入导出
     window.exportCSV = () => {
       const headers = ['id', 'isbn', 'title', 'author', 'price', 'status', 'notes', 'coverUrl', 'entryDate'];
       const csvRows = [headers.join(',')];
