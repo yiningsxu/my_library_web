@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <!-- 确保在手机上比例正确，且作为PWA运行时全屏沉浸 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>MY LIBRARY</title>
+  
+  <!-- 引入 Tailwind CSS 样式库 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 引入 Lucide 图标库 -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- 引入 HTML5 二维码扫描库 -->
+  <script src="https://unpkg.com/html5-qrcode"></script>
+
+  <style>
+    /* 适配 iOS 底部安全区域 */
+    .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+    /* 隐藏滚动条让界面更像原生App */
+    ::-webkit-scrollbar { width: 0px; background: transparent; }
+  </style>
+</head>
+<body class="bg-gray-100 font-sans selection:bg-indigo-100 flex justify-center h-screen overflow-hidden">
+
+  <!-- 整个应用的容器，限制最大宽度以模拟手机屏幕 -->
+  <div id="app" class="w-full max-w-md bg-gray-50 h-full flex flex-col shadow-2xl relative">
+
+    <!-- 1. 语言选择界面 (初始展示) -->
+    <div id="screen-language" class="absolute inset-0 bg-gray-50 z-50 flex flex-col items-center justify-center p-6">
+      <i data-lucide="globe" class="w-16 h-16 text-indigo-600 mb-6"></i>
+      <h1 class="text-2xl font-bold text-gray-800 mb-2 text-center">Language / 言語 / 语言</h1>
+      <p class="text-gray-500 mb-8 text-sm text-center">Please select your preferred language</p>
+      <div class="w-full space-y-4">
+        <button onclick="setLanguage('ja')" class="w-full bg-white border-2 border-indigo-100 text-indigo-700 py-4 rounded-xl font-bold text-lg hover:bg-indigo-50 transition-colors shadow-sm">日本語</button>
+        <button onclick="setLanguage('en')" class="w-full bg-white border-2 border-indigo-100 text-indigo-700 py-4 rounded-xl font-bold text-lg hover:bg-indigo-50 transition-colors shadow-sm">English</button>
+        <button onclick="setLanguage('zh')" class="w-full bg-white border-2 border-indigo-100 text-indigo-700 py-4 rounded-xl font-bold text-lg hover:bg-indigo-50 transition-colors shadow-sm">中文</button>
+      </div>
+    </div>
+
+    <!-- 2. 主应用界面 (选择语言后展示) -->
+    <div id="screen-app" class="hidden flex-col h-full w-full">
+      
+      <!-- 顶部导航栏 -->
+      <header class="bg-indigo-600 text-white p-4 shadow-md flex justify-between items-center z-10 shrink-0">
+        <h1 class="text-xl font-bold flex items-center gap-2">
+          <i data-lucide="book" class="w-6 h-6"></i>
+          <span id="header-title">我的藏书</span>
+        </h1>
+        <div class="flex items-center gap-3">
+          <span id="book-count-badge" class="text-sm bg-indigo-500 px-2 py-1 rounded-full hidden">0 本</span>
+          <button onclick="resetLanguage()" class="p-1 hover:bg-indigo-500 rounded-full transition-colors">
+            <i data-lucide="globe" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- 中间内容滚动区 -->
+      <main class="flex-1 overflow-y-auto pb-24">
+        
+        <!-- ================= [书架视图] ================= -->
+        <div id="view-library" class="p-4 space-y-4">
+          <!-- 导入导出工具栏 -->
+          <div class="flex gap-2 justify-end mb-2">
+            <label class="flex items-center gap-1 bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg text-sm shadow-sm cursor-pointer hover:bg-gray-50 transition-colors">
+              <i data-lucide="upload" class="w-4 h-4"></i>
+              <span data-i18n="importCSV">导入 CSV</span>
+              <input type="file" accept=".csv" onchange="importCSV(event)" class="hidden" />
+            </label>
+            <button onclick="exportCSV()" class="flex items-center gap-1 bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg text-sm shadow-sm hover:bg-gray-50 transition-colors">
+              <i data-lucide="download" class="w-4 h-4"></i>
+              <span data-i18n="exportCSV">导出 CSV</span>
+            </button>
+          </div>
+
+          <!-- 空状态提示 -->
+          <div id="empty-state" class="text-center text-gray-400 mt-20 flex flex-col items-center">
+            <i data-lucide="library" class="w-16 h-16 mb-4 opacity-50"></i>
+            <p id="empty-msg1" data-i18n="emptyLibrary">书架空空如也</p>
+            <p id="empty-msg2" class="text-sm mt-2" data-i18n="emptyLibraryHint">点击下方的 "+" 添加你的第一本书吧</p>
+          </div>
+
+          <!-- 书籍列表容器 -->
+          <div id="book-list" class="space-y-4 hidden"></div>
+        </div>
+
+        <!-- ================= [录入视图] ================= -->
+        <div id="view-add" class="p-4 hidden">
+          <!-- 扫码器区域 -->
+          <div id="scanner-container" class="hidden bg-black rounded-xl overflow-hidden mb-6 relative shadow-lg">
+            <div id="reader" class="w-full h-64"></div>
+            <button onclick="stopScanner()" class="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full shadow-md z-10">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+            <div class="absolute bottom-0 left-0 right-0 bg-black bg-opacity-60 text-white text-center p-2 text-sm" data-i18n="placeBarcode">
+              请将条形码置于取景框内
+            </div>
+          </div>
+          
+          <!-- 扫码按钮 -->
+          <div id="scanner-btn-container" class="mb-6 flex gap-3">
+            <button onclick="startScanner()" class="flex-1 bg-indigo-100 text-indigo-700 py-3 rounded-xl flex items-center justify-center gap-2 font-medium hover:bg-indigo-200 transition-colors">
+              <i data-lucide="barcode" class="w-5 h-5"></i>
+              <span data-i18n="scanBarcode">扫描条形码</span>
+            </button>
+          </div>
+
+          <!-- 手动表单区域 -->
+          <div class="bg-white rounded-xl shadow-sm p-5 space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1" data-i18n="isbn">ISBN</label>
+              <div class="flex gap-2">
+                <input type="text" id="input-isbn" class="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" />
+                <button onclick="manualFetch()" id="btn-search" class="bg-gray-100 text-gray-600 px-3 rounded-lg hover:bg-gray-200 transition-colors">
+                  <i data-lucide="search" class="w-5 h-5"></i>
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1"><span data-i18n="title">书名</span> <span class="text-red-500">*</span></label>
+              <input type="text" id="input-title" oninput="checkFormValid()" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none" />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1" data-i18n="author">作者</label>
+              <input type="text" id="input-author" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none" />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1" data-i18n="priceLabel">价格</label>
+              <input type="text" id="input-price" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none" />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2" data-i18n="bookCover">书籍图片</label>
+              <div class="flex items-end gap-4">
+                <div id="form-image-preview" class="w-24 h-32 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center overflow-hidden relative">
+                  <i data-lucide="image" class="text-gray-300 w-6 h-6"></i>
+                </div>
+                <div class="flex-1 space-y-2">
+                  <label class="flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 py-2 px-4 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors w-full">
+                    <i data-lucide="camera" class="w-4 h-4"></i>
+                    <span class="text-sm font-medium" data-i18n="photoUpload">拍照 / 上传</span>
+                    <input type="file" accept="image/*" capture="environment" onchange="handleImageUpload(event)" class="hidden" />
+                  </label>
+                  <p class="text-xs text-gray-500" data-i18n="photoTip">提示: 拍照会自动覆盖获取的封面图。</p>
+                </div>
+              </div>
+            </div>
+
+            <button id="btn-save" onclick="saveBook()" disabled class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold mt-6 shadow-md hover:bg-indigo-700 disabled:bg-gray-400 disabled:shadow-none transition-colors">
+              保存书籍
+            </button>
+          </div>
+        </div>
+
+      </main>
+
+      <!-- 底部固定导航栏 -->
+      <nav class="absolute bottom-0 w-full bg-white border-t border-gray-200 flex justify-around items-center h-16 pb-safe z-20">
+        <button id="nav-btn-library" onclick="switchTab('library')" class="flex flex-col items-center justify-center w-full h-full text-indigo-600 transition-colors">
+          <i data-lucide="library" class="w-6 h-6 fill-indigo-100" id="nav-icon-library"></i>
+          <span class="text-xs mt-1 font-medium" data-i18n="navLibrary">书架</span>
+        </button>
+        <button id="nav-btn-add" onclick="switchTab('add')" class="flex flex-col items-center justify-center w-full h-full text-gray-400 transition-colors">
+          <i data-lucide="plus-circle" class="w-6 h-6" id="nav-icon-add"></i>
+          <span class="text-xs mt-1 font-medium" data-i18n="navAdd">录入</span>
+        </button>
+      </nav>
+
+    </div>
+  </div>
+
+  <!-- 核心逻辑脚本 (ES Module 格式以支持 Firebase) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // 翻译字典
+    const translations = {
+      zh: {
+        myLibrary: '我的藏书', addBook: '添加新书', booksCount: '本',
+        emptyLibrary: '书架空空如也', emptyLibraryHint: '点击下方的 "+" 添加你的第一本书吧',
+        unknownAuthor: '未知作者', price: '价格', dateAdded: '录入日',
+        scanBarcode: '扫描条形码', placeBarcode: '请将条形码置于取景框内',
+        isbn: 'ISBN', isbnPlaceholder: '例如: 9784062752140', title: '书名', author: '作者',
+        priceLabel: '价格 (円 / ￥)', pricePlaceholder: '例如: 1200円',
+        bookCover: '书籍图片', photoUpload: '拍照 / 上传', photoTip: '提示: 拍照会自动覆盖网络获取的封面图。',
+        saveBook: '保存书籍', navLibrary: '书架', navAdd: '录入', exportCSV: '导出 CSV', importCSV: '导入 CSV'
+      },
+      en: {
+        myLibrary: 'My Library', addBook: 'Add Book', booksCount: 'books',
+        emptyLibrary: 'Your library is empty', emptyLibraryHint: 'Click "+" below to add your first book',
+        unknownAuthor: 'Unknown Author', price: 'Price', dateAdded: 'Date Added',
+        scanBarcode: 'Scan Barcode', placeBarcode: 'Place barcode inside the frame',
+        isbn: 'ISBN', isbnPlaceholder: 'e.g., 9784062752140', title: 'Title', author: 'Author',
+        priceLabel: 'Price (¥)', pricePlaceholder: 'e.g., 1200',
+        bookCover: 'Book Cover', photoUpload: 'Photo / Upload', photoTip: 'Tip: Taking a photo overwrites the fetched cover.',
+        saveBook: 'Save Book', navLibrary: 'Library', navAdd: 'Add', exportCSV: 'Export CSV', importCSV: 'Import CSV'
+      },
+      ja: {
+        myLibrary: '私の蔵書', addBook: '本を追加', booksCount: '冊',
+        emptyLibrary: '本棚は空です', emptyLibraryHint: '下の「+」をタップして最初の本を追加しましょう',
+        unknownAuthor: '作者不明', price: '価格', dateAdded: '登録日',
+        scanBarcode: 'バーコードをスキャン', placeBarcode: 'バーコードを枠内に配置してください',
+        isbn: 'ISBN', isbnPlaceholder: '例: 9784062752140', title: 'タイトル', author: '著者',
+        priceLabel: '価格 (円)', pricePlaceholder: '例: 1200円',
+        bookCover: '本の画像', photoUpload: '写真 / アップロード', photoTip: 'ヒント：写真を撮ると自動取得した画像が上書きされます。',
+        saveBook: '保存する', navLibrary: '本棚', navAdd: '登録', exportCSV: 'CSVを出力', importCSV: 'CSVを読込'
+      }
+    };
+
+    // 全局状态管理
+    window.state = {
+      lang: null,
+      tab: 'library',
+      books: [],
+      user: null,
+      formCoverUrl: '',
+      formCustomImage: '',
+      html5QrCode: null
+    };
+
+    // 初始化 Firebase (通过环境变量动态读取，若无则设为空对象)
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+    
+    let db, auth;
+    
+    // 初始化应用
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons(); // 渲染所有图标
+      injectPWAManifest();  // 注入 PWA 配置
+      
+      try {
+        const app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+        
+        // Firebase 登录流程
+        const initAuth = async () => {
+          if (initialAuthToken) {
+            await signInWithCustomToken(auth, initialAuthToken);
+          } else {
+            await signInAnonymously(auth);
+          }
+        };
+        initAuth();
+
+        // 监听登录状态和数据
+        onAuthStateChanged(auth, (user) => {
+          window.state.user = user;
+          if (user) {
+            const booksRef = collection(db, 'artifacts', appId, 'users', user.uid, 'books');
+            onSnapshot(booksRef, (snapshot) => {
+              const loadedBooks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+              loadedBooks.sort((a, b) => new Date(b.entryDate) - new Date(a.entryDate));
+              window.state.books = loadedBooks;
+              if (window.state.lang) renderLibrary(); // 如果已经选了语言，渲染列表
+            }, (error) => {
+              console.error("数据同步失败:", error);
+            });
+          }
+        });
+      } catch(e) { console.error("Firebase 初始化跳过（可能在本地无配置环境下运行）", e); }
+    });
+
+    // 1. 动态生成并注入 PWA 的 manifest 和 meta 标签
+    function injectPWAManifest() {
+      const iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="background-color:white"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>`;
+      const iconUrl = 'data:image/svg+xml;base64,' + btoa(iconSvg);
+      
+      const manifest = {
+        name: "藏书管理系统", short_name: "藏书管理", start_url: ".", display: "standalone",
+        background_color: "#f9fafb", theme_color: "#4f46e5",
+        icons: [{ src: iconUrl, sizes: "192x192 512x512", type: "image/svg+xml", purpose: "any maskable" }]
+      };
+      
+      const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+      const manifestUrl = URL.createObjectURL(blob);
+      
+      const linkManifest = document.createElement('link');
+      linkManifest.rel = 'manifest'; linkManifest.href = manifestUrl;
+      document.head.appendChild(linkManifest);
+
+      // iOS Meta tags
+      const metaCapable = document.createElement('meta');
+      metaCapable.name = 'apple-mobile-web-app-capable'; metaCapable.content = 'yes';
+      document.head.appendChild(metaCapable);
+
+      const metaStatus = document.createElement('meta');
+      metaStatus.name = 'apple-mobile-web-app-status-bar-style'; metaStatus.content = 'black-translucent';
+      document.head.appendChild(metaStatus);
+
+      const linkAppleIcon = document.createElement('link');
+      linkAppleIcon.rel = 'apple-touch-icon'; linkAppleIcon.href = iconUrl;
+      document.head.appendChild(linkAppleIcon);
+    }
+
+    // 2. 语言相关逻辑
+    window.setLanguage = (lang) => {
+      window.state.lang = lang;
+      document.getElementById('screen-language').classList.add('hidden');
+      document.getElementById('screen-app').classList.remove('hidden');
+      updateUITexts();
+      renderLibrary();
+    };
+
+    window.resetLanguage = () => {
+      window.state.lang = null;
+      document.getElementById('screen-language').classList.remove('hidden');
+      document.getElementById('screen-app').classList.add('hidden');
+      window.stopScanner();
+    };
+
+    function updateUITexts() {
+      const t = translations[window.state.lang];
+      document.getElementById('header-title').innerText = window.state.tab === 'library' ? t.myLibrary : t.addBook;
+      
+      // 更新所有带 data-i18n 的静态文本
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (t[key]) el.innerText = t[key];
+      });
+
+      // 更新输入框占位符和按钮文本
+      document.getElementById('input-isbn').placeholder = t.isbnPlaceholder;
+      document.getElementById('input-price').placeholder = t.pricePlaceholder;
+      document.getElementById('btn-save').innerText = t.saveBook;
+    }
+
+    // 3. 标签切换逻辑
+    window.switchTab = (tab) => {
+      window.state.tab = tab;
+      const t = translations[window.state.lang];
+      document.getElementById('header-title').innerText = tab === 'library' ? t.myLibrary : t.addBook;
+      
+      if (tab === 'library') {
+        document.getElementById('view-library').classList.remove('hidden');
+        document.getElementById('view-add').classList.add('hidden');
+        document.getElementById('book-count-badge').classList.remove('hidden');
+        
+        // 样式切换
+        document.getElementById('nav-btn-library').className = "flex flex-col items-center justify-center w-full h-full text-indigo-600 transition-colors";
+        document.getElementById('nav-icon-library').classList.add('fill-indigo-100');
+        document.getElementById('nav-btn-add').className = "flex flex-col items-center justify-center w-full h-full text-gray-400 transition-colors";
+        document.getElementById('nav-icon-add').classList.remove('fill-indigo-100');
+        
+        window.stopScanner();
+      } else {
+        document.getElementById('view-library').classList.add('hidden');
+        document.getElementById('view-add').classList.remove('hidden');
+        document.getElementById('book-count-badge').classList.add('hidden');
+        
+        // 样式切换
+        document.getElementById('nav-btn-library').className = "flex flex-col items-center justify-center w-full h-full text-gray-400 transition-colors";
+        document.getElementById('nav-icon-library').classList.remove('fill-indigo-100');
+        document.getElementById('nav-btn-add').className = "flex flex-col items-center justify-center w-full h-full text-indigo-600 transition-colors";
+        document.getElementById('nav-icon-add').classList.add('fill-indigo-100');
+      }
+    };
+
+    // 4. 渲染书架
+    function renderLibrary() {
+      const t = translations[window.state.lang];
+      const books = window.state.books;
+      const listEl = document.getElementById('book-list');
+      const emptyEl = document.getElementById('empty-state');
+      
+      document.getElementById('book-count-badge').innerText = `${books.length} ${t.booksCount}`;
+      if (window.state.tab === 'library') {
+         document.getElementById('book-count-badge').classList.remove('hidden');
+      }
+
+      if (books.length === 0) {
+        listEl.classList.add('hidden');
+        emptyEl.classList.remove('hidden');
+      } else {
+        emptyEl.classList.add('hidden');
+        listEl.classList.remove('hidden');
+        
+        listEl.innerHTML = books.map(book => {
+          const imgHtml = (book.customImage || book.coverUrl) 
+            ? `<img src="${book.customImage || book.coverUrl}" class="w-full h-full object-cover"/>`
+            : `<i data-lucide="image" class="text-gray-300 w-8 h-8"></i>`;
+            
+          const dateStr = new Date(book.entryDate).toLocaleDateString();
+          
+          return `
+            <div class="bg-white p-3 rounded-xl shadow-sm flex gap-4 relative overflow-hidden">
+              <div class="w-20 h-28 bg-gray-100 rounded-md flex-shrink-0 flex items-center justify-center overflow-hidden border border-gray-100">
+                ${imgHtml}
+              </div>
+              <div class="flex-1 min-w-0 py-1">
+                <h3 class="font-bold text-gray-800 text-lg truncate mb-1">${book.title}</h3>
+                <p class="text-sm text-gray-600 truncate">${book.author || t.unknownAuthor}</p>
+                <div class="mt-2 text-xs text-gray-500 space-y-1">
+                  ${book.isbn ? `<p>ISBN: ${book.isbn}</p>` : ''}
+                  ${book.price ? `<p class="text-indigo-600 font-medium">${t.price}: ${book.price}</p>` : ''}
+                  <p>${t.dateAdded}: ${dateStr}</p>
+                </div>
+              </div>
+              <button onclick="deleteBook('${book.id}')" class="absolute top-2 right-2 p-2 text-gray-300 hover:text-red-500 transition-colors">
+                <i data-lucide="trash-2" class="w-5 h-5"></i>
+              </button>
+            </div>
+          `;
+        }).join('');
+        lucide.createIcons({ root: listEl });
+      }
+    }
+
+    // 5. 扫码器控制
+    window.startScanner = () => {
+      document.getElementById('scanner-container').classList.remove('hidden');
+      document.getElementById('scanner-btn-container').classList.add('hidden');
+      
+      if (!window.state.html5QrCode) {
+        window.state.html5QrCode = new Html5Qrcode("reader");
+      }
+      
+      const config = { fps: 10, qrbox: { width: 250, height: 150 } };
+      window.state.html5QrCode.start(
+        { facingMode: "environment" }, config,
+        (decodedText) => {
+          window.stopScanner();
+          const cleanIsbn = decodedText.replace(/\D/g, '');
+          document.getElementById('input-isbn').value = cleanIsbn;
+          fetchBookData(cleanIsbn);
+        }
+      ).catch(err => {
+        console.error("摄像头启动失败:", err);
+        window.stopScanner();
+      });
+    };
+
+    window.stopScanner = () => {
+      if (window.state.html5QrCode && window.state.html5QrCode.isScanning) {
+        window.state.html5QrCode.stop().then(() => {
+          document.getElementById('scanner-container').classList.add('hidden');
+          document.getElementById('scanner-btn-container').classList.remove('hidden');
+        }).catch(err => console.error(err));
+      } else {
+        document.getElementById('scanner-container').classList.add('hidden');
+        document.getElementById('scanner-btn-container').classList.remove('hidden');
+      }
+    };
+
+    // 6. 数据获取与表单处理
+    window.manualFetch = () => {
+      const isbn = document.getElementById('input-isbn').value.trim();
+      if(isbn) fetchBookData(isbn);
+    };
+
+    async function fetchBookData(isbn) {
+      if (!isbn) return;
+      
+      const btnSearch = document.getElementById('btn-search');
+      btnSearch.innerHTML = `<div class="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600"></div>`;
+      
+      try {
+        // 1. OpenBD API
+        let res = await fetch(`https://api.openbd.jp/v1/get?isbn=${isbn}`);
+        let data = await res.json();
+        if (data && data[0]) {
+          fillForm(data[0].summary.title, data[0].summary.author, data[0].summary.cover);
+          btnSearch.innerHTML = `<i data-lucide="search" class="w-5 h-5"></i>`;
+          lucide.createIcons({root: btnSearch});
+          return;
+        }
+
+        // 2. Google Books API
+        res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
+        data = await res.json();
+        if (data.items && data.items.length > 0) {
+          const info = data.items[0].volumeInfo;
+          fillForm(
+            info.title, 
+            info.authors ? info.authors.join(', ') : '', 
+            info.imageLinks ? info.imageLinks.thumbnail.replace('http:', 'https:') : ''
+          );
+          btnSearch.innerHTML = `<i data-lucide="search" class="w-5 h-5"></i>`;
+          lucide.createIcons({root: btnSearch});
+          return;
+        }
+
+        // 3. Open Library API
+        res = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&jscmd=data&format=json`);
+        data = await res.json();
+        const olBook = data[`ISBN:${isbn}`];
+        if (olBook) {
+          fillForm(
+            olBook.title, 
+            olBook.authors ? olBook.authors.map(a => a.name).join(', ') : '', 
+            olBook.cover ? (olBook.cover.large || olBook.cover.medium) : ''
+          );
+        }
+      } catch (e) {
+        console.error("API获取失败", e);
+      }
+      
+      btnSearch.innerHTML = `<i data-lucide="search" class="w-5 h-5"></i>`;
+      lucide.createIcons({root: btnSearch});
+    }
+
+    function fillForm(title, author, coverUrl) {
+      if(title) document.getElementById('input-title').value = title;
+      if(author) document.getElementById('input-author').value = author;
+      if(coverUrl) {
+        window.state.formCoverUrl = coverUrl;
+        updateImagePreview();
+      }
+      window.checkFormValid();
+    }
+
+    window.checkFormValid = () => {
+      const title = document.getElementById('input-title').value.trim();
+      document.getElementById('btn-save').disabled = title.length === 0;
+    };
+
+    window.handleImageUpload = (event) => {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          window.state.formCustomImage = reader.result;
+          updateImagePreview();
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+
+    function updateImagePreview() {
+      const img = window.state.formCustomImage || window.state.formCoverUrl;
+      const previewEl = document.getElementById('form-image-preview');
+      if (img) {
+        previewEl.innerHTML = `<img src="${img}" class="w-full h-full object-cover" />`;
+      }
+    }
+
+    window.saveBook = async () => {
+      if (!window.state.user) return; // 需要登录状态才能存云端
+      
+      const newBook = {
+        isbn: document.getElementById('input-isbn').value.trim(),
+        title: document.getElementById('input-title').value.trim(),
+        author: document.getElementById('input-author').value.trim(),
+        price: document.getElementById('input-price').value.trim(),
+        coverUrl: window.state.formCoverUrl,
+        customImage: window.state.formCustomImage,
+        entryDate: new Date().toISOString()
+      };
+      
+      const newId = Date.now().toString();
+      await setDoc(doc(db, 'artifacts', appId, 'users', window.state.user.uid, 'books', newId), newBook);
+      
+      // 清空表单
+      document.getElementById('input-isbn').value = '';
+      document.getElementById('input-title').value = '';
+      document.getElementById('input-author').value = '';
+      document.getElementById('input-price').value = '';
+      window.state.formCoverUrl = '';
+      window.state.formCustomImage = '';
+      document.getElementById('form-image-preview').innerHTML = `<i data-lucide="image" class="text-gray-300 w-6 h-6"></i>`;
+      lucide.createIcons({root: document.getElementById('form-image-preview')});
+      window.checkFormValid();
+      
+      // 返回书架
+      window.switchTab('library');
+    };
+
+    window.deleteBook = async (id) => {
+      if (!window.state.user) return;
+      await deleteDoc(doc(db, 'artifacts', appId, 'users', window.state.user.uid, 'books', id));
+    };
+
+    // 7. CSV 导入导出
+    window.exportCSV = () => {
+      const headers = ['id', 'isbn', 'title', 'author', 'price', 'coverUrl', 'entryDate'];
+      const csvRows = [headers.join(',')];
+      
+      window.state.books.forEach(book => {
+        const row = headers.map(header => {
+          let val = book[header] || '';
+          val = val.toString().replace(/"/g, '""'); 
+          return `"${val}"`;
+        });
+        csvRows.push(row.join(','));
+      });
+      
+      const blob = new Blob(['\uFEFF' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'my_library.csv';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    };
+
+    window.importCSV = (event) => {
+      const file = event.target.files[0];
+      if (!file || !window.state.user) return;
+      
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const text = e.target.result;
+        const rows = text.split('\n').filter(r => r.trim());
+        if (rows.length < 2) return;
+        
+        const headers = rows[0].split(',').map(h => h.replace(/"/g, '').trim());
+        const batch = writeBatch(db);
+        
+        for (let i = 1; i < rows.length; i++) {
+          const rowStr = rows[i];
+          const values = [];
+          let inQuote = false; let currentVal = '';
+          for (let char of rowStr) {
+            if (char === '"' && !inQuote) inQuote = true;
+            else if (char === '"' && inQuote) inQuote = false;
+            else if (char === ',' && !inQuote) { values.push(currentVal); currentVal = ''; }
+            else currentVal += char;
+          }
+          values.push(currentVal);
+          
+          const bookData = {};
+          headers.forEach((h, index) => {
+            bookData[h] = values[index] ? values[index].replace(/^"|"$/g, '') : '';
+          });
+          
+          if (bookData.title) {
+            const docId = bookData.id || Date.now().toString() + i;
+            delete bookData.id; 
+            const docRef = doc(db, 'artifacts', appId, 'users', window.state.user.uid, 'books', docId);
+            batch.set(docRef, bookData);
+          }
+        }
+        await batch.commit();
+        event.target.value = null;
+      };
+      reader.readAsText(file);
+    };
+  </script>
+</body>
+</html>
