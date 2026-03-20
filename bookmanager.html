@@ -131,6 +131,22 @@
               <input type="text" id="input-price" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none" />
             </div>
 
+            <!-- 新增：阅读状态 -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1" data-i18n="statusLabel">阅读状态</label>
+              <select id="input-status" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                <option value="unread" data-i18n="statusUnread">未读</option>
+                <option value="reading" data-i18n="statusReading">阅读中</option>
+                <option value="read" data-i18n="statusRead">已读</option>
+              </select>
+            </div>
+
+            <!-- 新增：阅读感想 -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1" data-i18n="notesLabel">阅读感想</label>
+              <textarea id="input-notes" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none resize-none placeholder-gray-400"></textarea>
+            </div>
+
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2" data-i18n="bookCover">书籍图片</label>
               <div class="flex items-end gap-4">
@@ -177,7 +193,7 @@
     import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import { getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    // 翻译字典
+    // 翻译字典 (包含新增的阅读状态和感想)
     const translations = {
       zh: {
         myLibrary: '我的藏书', addBook: '添加新书', booksCount: '本',
@@ -186,6 +202,8 @@
         scanBarcode: '扫描条形码', placeBarcode: '请将条形码置于取景框内',
         isbn: 'ISBN', isbnPlaceholder: '例如: 9784062752140', title: '书名', author: '作者',
         priceLabel: '价格 (円 / ￥)', pricePlaceholder: '例如: 1200円',
+        statusLabel: '阅读状态', statusUnread: '未读', statusReading: '阅读中', statusRead: '已读',
+        notesLabel: '阅读感想',
         bookCover: '书籍图片', photoUpload: '拍照 / 上传', photoTip: '提示: 拍照会自动覆盖网络获取的封面图。',
         saveBook: '保存书籍', navLibrary: '书架', navAdd: '录入', exportCSV: '导出 CSV', importCSV: '导入 CSV'
       },
@@ -196,6 +214,8 @@
         scanBarcode: 'Scan Barcode', placeBarcode: 'Place barcode inside the frame',
         isbn: 'ISBN', isbnPlaceholder: 'e.g., 9784062752140', title: 'Title', author: 'Author',
         priceLabel: 'Price (¥)', pricePlaceholder: 'e.g., 1200',
+        statusLabel: 'Reading Status', statusUnread: 'Unread', statusReading: 'Reading', statusRead: 'Read',
+        notesLabel: 'Reading Notes',
         bookCover: 'Book Cover', photoUpload: 'Photo / Upload', photoTip: 'Tip: Taking a photo overwrites the fetched cover.',
         saveBook: 'Save Book', navLibrary: 'Library', navAdd: 'Add', exportCSV: 'Export CSV', importCSV: 'Import CSV'
       },
@@ -206,6 +226,8 @@
         scanBarcode: 'バーコードをスキャン', placeBarcode: 'バーコードを枠内に配置してください',
         isbn: 'ISBN', isbnPlaceholder: '例: 9784062752140', title: 'タイトル', author: '著者',
         priceLabel: '価格 (円)', pricePlaceholder: '例: 1200円',
+        statusLabel: '読書状況', statusUnread: '未読', statusReading: '読書中', statusRead: '読了',
+        notesLabel: '感想',
         bookCover: '本の画像', photoUpload: '写真 / アップロード', photoTip: 'ヒント：写真を撮ると自動取得した画像が上書きされます。',
         saveBook: '保存する', navLibrary: '本棚', navAdd: '登録', exportCSV: 'CSVを出力', importCSV: 'CSVを読込'
       }
@@ -222,7 +244,7 @@
       html5QrCode: null
     };
 
-    // 初始化 Firebase (通过环境变量动态读取，若无则设为空对象)
+    // 初始化 Firebase
     const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
     const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
@@ -231,15 +253,14 @@
     
     // 初始化应用
     document.addEventListener('DOMContentLoaded', () => {
-      lucide.createIcons(); // 渲染所有图标
-      injectPWAManifest();  // 注入 PWA 配置
+      lucide.createIcons();
+      injectPWAManifest();
       
       try {
         const app = initializeApp(firebaseConfig);
         auth = getAuth(app);
         db = getFirestore(app);
         
-        // Firebase 登录流程
         const initAuth = async () => {
           if (initialAuthToken) {
             await signInWithCustomToken(auth, initialAuthToken);
@@ -249,7 +270,6 @@
         };
         initAuth();
 
-        // 监听登录状态和数据
         onAuthStateChanged(auth, (user) => {
           window.state.user = user;
           if (user) {
@@ -258,13 +278,13 @@
               const loadedBooks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
               loadedBooks.sort((a, b) => new Date(b.entryDate) - new Date(a.entryDate));
               window.state.books = loadedBooks;
-              if (window.state.lang) renderLibrary(); // 如果已经选了语言，渲染列表
+              if (window.state.lang) renderLibrary();
             }, (error) => {
               console.error("数据同步失败:", error);
             });
           }
         });
-      } catch(e) { console.error("Firebase 初始化跳过（可能在本地无配置环境下运行）", e); }
+      } catch(e) { console.error("Firebase 初始化跳过", e); }
     });
 
     // 1. 动态生成并注入 PWA 的 manifest 和 meta 标签
@@ -285,7 +305,6 @@
       linkManifest.rel = 'manifest'; linkManifest.href = manifestUrl;
       document.head.appendChild(linkManifest);
 
-      // iOS Meta tags
       const metaCapable = document.createElement('meta');
       metaCapable.name = 'apple-mobile-web-app-capable'; metaCapable.content = 'yes';
       document.head.appendChild(metaCapable);
@@ -319,13 +338,11 @@
       const t = translations[window.state.lang];
       document.getElementById('header-title').innerText = window.state.tab === 'library' ? t.myLibrary : t.addBook;
       
-      // 更新所有带 data-i18n 的静态文本
       document.querySelectorAll('[data-i18n]').forEach(el => {
         const key = el.getAttribute('data-i18n');
         if (t[key]) el.innerText = t[key];
       });
 
-      // 更新输入框占位符和按钮文本
       document.getElementById('input-isbn').placeholder = t.isbnPlaceholder;
       document.getElementById('input-price').placeholder = t.pricePlaceholder;
       document.getElementById('btn-save').innerText = t.saveBook;
@@ -342,7 +359,6 @@
         document.getElementById('view-add').classList.add('hidden');
         document.getElementById('book-count-badge').classList.remove('hidden');
         
-        // 样式切换
         document.getElementById('nav-btn-library').className = "flex flex-col items-center justify-center w-full h-full text-indigo-600 transition-colors";
         document.getElementById('nav-icon-library').classList.add('fill-indigo-100');
         document.getElementById('nav-btn-add').className = "flex flex-col items-center justify-center w-full h-full text-gray-400 transition-colors";
@@ -354,7 +370,6 @@
         document.getElementById('view-add').classList.remove('hidden');
         document.getElementById('book-count-badge').classList.add('hidden');
         
-        // 样式切换
         document.getElementById('nav-btn-library').className = "flex flex-col items-center justify-center w-full h-full text-gray-400 transition-colors";
         document.getElementById('nav-icon-library').classList.remove('fill-indigo-100');
         document.getElementById('nav-btn-add').className = "flex flex-col items-center justify-center w-full h-full text-indigo-600 transition-colors";
@@ -388,20 +403,43 @@
             
           const dateStr = new Date(book.entryDate).toLocaleDateString();
           
+          // 状态处理
+          const statusColors = {
+            unread: 'bg-gray-100 text-gray-600',
+            reading: 'bg-blue-100 text-blue-700',
+            read: 'bg-green-100 text-green-700'
+          };
+          const statusMap = {
+            unread: t.statusUnread,
+            reading: t.statusReading,
+            read: t.statusRead
+          };
+          const currentStatus = book.status || 'unread';
+          const statusBadge = `<span class="inline-block px-2 py-0.5 rounded text-[10px] font-medium ${statusColors[currentStatus]} mb-1">${statusMap[currentStatus]}</span>`;
+          
+          // 感想处理
+          const notesHtml = book.notes 
+            ? `<div class="mt-2 text-xs text-gray-600 bg-gray-50 p-2 rounded border border-gray-100 italic break-words">${book.notes}</div>` 
+            : '';
+          
           return `
-            <div class="bg-white p-3 rounded-xl shadow-sm flex gap-4 relative overflow-hidden">
-              <div class="w-20 h-28 bg-gray-100 rounded-md flex-shrink-0 flex items-center justify-center overflow-hidden border border-gray-100">
-                ${imgHtml}
-              </div>
-              <div class="flex-1 min-w-0 py-1">
-                <h3 class="font-bold text-gray-800 text-lg truncate mb-1">${book.title}</h3>
-                <p class="text-sm text-gray-600 truncate">${book.author || t.unknownAuthor}</p>
-                <div class="mt-2 text-xs text-gray-500 space-y-1">
-                  ${book.isbn ? `<p>ISBN: ${book.isbn}</p>` : ''}
-                  ${book.price ? `<p class="text-indigo-600 font-medium">${t.price}: ${book.price}</p>` : ''}
-                  <p>${t.dateAdded}: ${dateStr}</p>
+            <div class="bg-white p-3 rounded-xl shadow-sm relative overflow-hidden flex flex-col gap-2">
+              <div class="flex gap-4">
+                <div class="w-20 h-28 bg-gray-100 rounded-md flex-shrink-0 flex items-center justify-center overflow-hidden border border-gray-100">
+                  ${imgHtml}
+                </div>
+                <div class="flex-1 min-w-0 py-1">
+                  ${statusBadge}
+                  <h3 class="font-bold text-gray-800 text-lg leading-tight mb-1 truncate">${book.title}</h3>
+                  <p class="text-sm text-gray-600 truncate">${book.author || t.unknownAuthor}</p>
+                  <div class="mt-2 text-xs text-gray-500 space-y-1">
+                    ${book.isbn ? `<p>ISBN: ${book.isbn}</p>` : ''}
+                    ${book.price ? `<p class="text-indigo-600 font-medium">${t.price}: ${book.price}</p>` : ''}
+                    <p>${t.dateAdded}: ${dateStr}</p>
+                  </div>
                 </div>
               </div>
+              ${notesHtml}
               <button onclick="deleteBook('${book.id}')" class="absolute top-2 right-2 p-2 text-gray-300 hover:text-red-500 transition-colors">
                 <i data-lucide="trash-2" class="w-5 h-5"></i>
               </button>
@@ -461,7 +499,6 @@
       btnSearch.innerHTML = `<div class="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600"></div>`;
       
       try {
-        // 1. OpenBD API
         let res = await fetch(`https://api.openbd.jp/v1/get?isbn=${isbn}`);
         let data = await res.json();
         if (data && data[0]) {
@@ -471,7 +508,6 @@
           return;
         }
 
-        // 2. Google Books API
         res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
         data = await res.json();
         if (data.items && data.items.length > 0) {
@@ -486,7 +522,6 @@
           return;
         }
 
-        // 3. Open Library API
         res = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&jscmd=data&format=json`);
         data = await res.json();
         const olBook = data[`ISBN:${isbn}`];
@@ -541,13 +576,15 @@
     }
 
     window.saveBook = async () => {
-      if (!window.state.user) return; // 需要登录状态才能存云端
+      if (!window.state.user) return; 
       
       const newBook = {
         isbn: document.getElementById('input-isbn').value.trim(),
         title: document.getElementById('input-title').value.trim(),
         author: document.getElementById('input-author').value.trim(),
         price: document.getElementById('input-price').value.trim(),
+        status: document.getElementById('input-status').value, // 状态
+        notes: document.getElementById('input-notes').value.trim(), // 感想
         coverUrl: window.state.formCoverUrl,
         customImage: window.state.formCustomImage,
         entryDate: new Date().toISOString()
@@ -561,6 +598,8 @@
       document.getElementById('input-title').value = '';
       document.getElementById('input-author').value = '';
       document.getElementById('input-price').value = '';
+      document.getElementById('input-status').value = 'unread';
+      document.getElementById('input-notes').value = '';
       window.state.formCoverUrl = '';
       window.state.formCustomImage = '';
       document.getElementById('form-image-preview').innerHTML = `<i data-lucide="image" class="text-gray-300 w-6 h-6"></i>`;
@@ -578,7 +617,7 @@
 
     // 7. CSV 导入导出
     window.exportCSV = () => {
-      const headers = ['id', 'isbn', 'title', 'author', 'price', 'coverUrl', 'entryDate'];
+      const headers = ['id', 'isbn', 'title', 'author', 'price', 'status', 'notes', 'coverUrl', 'entryDate'];
       const csvRows = [headers.join(',')];
       
       window.state.books.forEach(book => {
