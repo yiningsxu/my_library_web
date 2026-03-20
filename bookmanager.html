@@ -183,7 +183,7 @@
         unknownAuthor: '未知作者', price: '价格', dateAdded: '录入日',
         scanBarcode: '扫描条形码', placeBarcode: '请将条形码置于取景框内',
         isbn: 'ISBN', isbnPlaceholder: '例如: 9784062752140', title: '书名', author: '作者',
-        priceLabel: '价格 (￥)', pricePlaceholder: '例如: 78',
+        priceLabel: '价格 (円 / ￥)', pricePlaceholder: '例如: 1200円',
         statusLabel: '阅读状态', statusUnread: '未读', statusReading: '阅读中', statusRead: '已读',
         notesLabel: '阅读感想',
         bookCover: '书籍图片', photoUpload: '拍照 / 上传', photoTip: '提示: 拍照会自动压缩并覆盖获取的封面图。',
@@ -195,7 +195,7 @@
         unknownAuthor: 'Unknown Author', price: 'Price', dateAdded: 'Date Added',
         scanBarcode: 'Scan Barcode', placeBarcode: 'Place barcode inside the frame',
         isbn: 'ISBN', isbnPlaceholder: 'e.g., 9784062752140', title: 'Title', author: 'Author',
-        priceLabel: 'Price (¥)', pricePlaceholder: 'e.g., 35',
+        priceLabel: 'Price (¥)', pricePlaceholder: 'e.g., 1200',
         statusLabel: 'Reading Status', statusUnread: 'Unread', statusReading: 'Reading', statusRead: 'Read',
         notesLabel: 'Reading Notes',
         bookCover: 'Book Cover', photoUpload: 'Photo / Upload', photoTip: 'Tip: Photos are automatically compressed and will overwrite the fetched cover.',
@@ -226,21 +226,52 @@
       html5QrCode: null
     };
 
-    function loadLocalBooks() {
-      const stored = localStorage.getItem('my_library_books');
-      if (stored) {
-        window.state.books = JSON.parse(stored);
+    // IndexedDB 封装，替代容量极小的 LocalStorage (解决 5MB 限制问题)
+    const localDB = {
+      db: null,
+      async init() {
+        return new Promise((resolve, reject) => {
+          const request = indexedDB.open('MyLibraryDB', 1);
+          request.onupgradeneeded = (e) => {
+            e.target.result.createObjectStore('books', { keyPath: 'id' });
+          };
+          request.onsuccess = async (e) => {
+            this.db = e.target.result;
+            // 无缝迁移旧的 LocalStorage 数据，防止之前存的 16 本书丢失
+            const oldData = localStorage.getItem('my_library_books');
+            if (oldData) {
+              try {
+                const parsed = JSON.parse(oldData);
+                for (let book of parsed) {
+                  await this.put(book);
+                }
+                localStorage.removeItem('my_library_books');
+              } catch(err) { console.error("数据迁移失败", err); }
+            }
+            resolve();
+          };
+          request.onerror = (e) => reject(e);
+        });
+      },
+      async getAll() {
+        return new Promise((resolve) => {
+          const req = this.db.transaction('books').objectStore('books').getAll();
+          req.onsuccess = () => resolve(req.result);
+        });
+      },
+      async put(book) {
+        return new Promise((resolve) => {
+          const req = this.db.transaction('books', 'readwrite').objectStore('books').put(book);
+          req.onsuccess = () => resolve();
+        });
+      },
+      async delete(id) {
+        return new Promise((resolve) => {
+          const req = this.db.transaction('books', 'readwrite').objectStore('books').delete(id);
+          req.onsuccess = () => resolve();
+        });
       }
-    }
-
-    function saveLocalBooks() {
-      try {
-        localStorage.setItem('my_library_books', JSON.stringify(window.state.books));
-      } catch (e) {
-        console.error("Local Storage is full, Please export CSV to backup your data.", e);
-        alert("存储空间不足，请先导出 CSV 备份并清理浏览器缓存。");
-      }
-    }
+    };
 
     const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -248,9 +279,17 @@
     
     let db, auth;
     
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
       lucide.createIcons();
-      loadLocalBooks();
+      
+      // 初始化本地高容量数据库并加载数据
+      try {
+        await localDB.init();
+        window.state.books = await localDB.getAll();
+        window.state.books.sort((a, b) => new Date(b.entryDate) - new Date(a.entryDate));
+      } catch (e) {
+        console.error("本地数据库初始化失败", e);
+      }
       
       try {
         const app = initializeApp(firebaseConfig);
@@ -580,8 +619,8 @@
           const img = new Image();
           img.onload = () => {
             const canvas = document.createElement('canvas');
-            const MAX_WIDTH = 600; // 设置最大宽度
-            const MAX_HEIGHT = 800; // 设置最大高度
+            const MAX_WIDTH = 400; // 进一步缩小宽度，节省大量空间
+            const MAX_HEIGHT = 600; // 进一步缩小高度
             let width = img.width;
             let height = img.height;
 
@@ -603,8 +642,8 @@
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
 
-            // 压缩图片：将压缩质量设置为 0.7 并转为 JPEG 格式
-            window.state.formCustomImage = canvas.toDataURL('image/jpeg', 0.7);
+            // 压缩图片：将压缩质量降低至 0.6
+            window.state.formCustomImage = canvas.toDataURL('image/jpeg', 0.6);
             updateImagePreview();
             window.checkFormValid();
           };
@@ -662,7 +701,7 @@
         } else {
           window.state.books.unshift(newBook);
         }
-        saveLocalBooks();
+        await localDB.put(newBook); // 保存入大容量 IndexedDB
       }
       
       window.clearForm();
@@ -676,7 +715,7 @@
         await deleteDoc(doc(db, 'artifacts', appId, 'users', window.state.user.uid, 'books', id));
       } else {
         window.state.books = window.state.books.filter(b => b.id !== id);
-        saveLocalBooks();
+        await localDB.delete(id); // 从本地大容量数据库删除
         renderLibrary();
       }
     };
@@ -745,6 +784,7 @@
             } else {
               bookData.id = docId;
               window.state.books.push(bookData);
+              await localDB.put(bookData); // 批量存入本地大容量数据库
             }
           }
         }
@@ -752,7 +792,7 @@
         if (isCloudConnected) {
           await batch.commit();
         } else {
-          saveLocalBooks();
+          window.state.books.sort((a, b) => new Date(b.entryDate) - new Date(a.entryDate));
           renderLibrary();
         }
         event.target.value = null;
