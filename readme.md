@@ -1,4 +1,4 @@
-# My Library
+# BookScanDB
 
 A mobile-first, single-file bookshelf manager built from `bookmanager.html`.
 
